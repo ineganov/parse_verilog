@@ -4,16 +4,18 @@ import Data.Map (fromList, member, (!))
 import Control.Monad.State.Lazy (State, get, put, runState)
 
 data Token = Comment String 
-           | Ident String 
+           | Ident String
+           | DotConn String
            | NumLiteral Int 
            | OpAssign | OpBitwiseOr | OpBitwiseAnd | OpBitwiseXor | OpBitwiseInv
-           | K_module | K_endmodule | K_begin | K_end | K_assign | K_input | K_output | K_inout
-           | LParen 
-           | RParen 
-           | LBracket 
-           | RBracket 
+           | K_module | K_endmodule | K_begin | K_end | K_assign | K_wire | K_reg | K_input | K_output | K_inout
+           | LParen   | RParen 
+           | LBracket | RBracket 
+           | LBrace   | RBrace
            | Semi 
-           | Colon 
+           | Colon
+           | Hash 
+           | BaseHex | BaseDec | BaseOct | BaseBin
            | Comma deriving (Show, Eq)
 
 
@@ -28,6 +30,8 @@ keyw_map = fromList [ ("module",    K_module    ),
                       ("begin",     K_begin     ),
                       ("end",       K_end       ),
                       ("assign",    K_assign    ),
+                      ("wire",      K_wire      ),
+                      ("reg",       K_reg       ),
                       ("input",     K_input     ),
                       ("output",    K_output    ),
                       ("inout",     K_inout     ) ]
@@ -40,21 +44,33 @@ tokenize ('(':xs)     = LParen   : tokenize xs
 tokenize (')':xs)     = RParen   : tokenize xs
 tokenize ('[':xs)     = LBracket : tokenize xs
 tokenize (']':xs)     = RBracket : tokenize xs
+tokenize ('{':xs)     = LBrace   : tokenize xs
+tokenize ('}':xs)     = RBrace   : tokenize xs
 tokenize (';':xs)     = Semi     : tokenize xs
 tokenize (':':xs)     = Colon    : tokenize xs
 tokenize (',':xs)     = Comma    : tokenize xs
+tokenize ('#':xs)     = Hash     : tokenize xs
 tokenize ('=':xs)     = OpAssign     : tokenize xs
 tokenize ('&':xs)     = OpBitwiseAnd : tokenize xs
 tokenize ('|':xs)     = OpBitwiseOr  : tokenize xs
 tokenize ('^':xs)     = OpBitwiseXor : tokenize xs
 tokenize ('~':xs)     = OpBitwiseInv : tokenize xs
-tokenize ('/':'/':xs) = Comment (takeWhile (/= '\n') xs)                   : tokenize (dropWhile (/= '\n') xs)
+tokenize ('\\':xs)    = Ident   (takeWhile (/= ' ') xs)     : tokenize (dropWhile (/= ' ') xs)
+tokenize ('.':xs)     = DotConn (takeWhile isLegalIdent xs) : tokenize (dropWhile isLegalIdent xs)
+tokenize ('/':'/':xs) = Comment (takeWhile (/= '\n') xs)    : tokenize (dropWhile (/= '\n') xs)
+tokenize ('\'':'h':xs) = BaseHex  : tokenize xs
+tokenize ('\'':'d':xs) = BaseDec  : tokenize xs
+tokenize ('\'':'o':xs) = BaseOct  : tokenize xs
+tokenize ('\'':'b':xs) = BaseBin  : tokenize xs
 tokenize (x:xs) | isAlpha x = if member anum keyw_map 
-                                then (keyw_map ! anum)                     : tokenize (dropWhile isAlphaNum xs)
-                                else Ident anum                            : tokenize (dropWhile isAlphaNum xs)
+                                then (keyw_map ! anum)                     : tokenize (dropWhile isLegalIdent xs)
+                                else Ident anum                            : tokenize (dropWhile isLegalIdent xs)
                 | isDigit x = NumLiteral (read (takeWhile isDigit (x:xs))) : tokenize (dropWhile isDigit xs)
                 | otherwise = error $ "Unexpected token: " ++ take 10 (x:xs)
-                where anum = takeWhile isAlphaNum (x:xs)
+                where anum = takeWhile isLegalIdent (x:xs)
+
+isLegalIdent :: Char -> Bool
+isLegalIdent c = isAlphaNum c || c == '_' || c == '$'
 
 no_comments :: [Token] -> [Token]
 no_comments []             = []
