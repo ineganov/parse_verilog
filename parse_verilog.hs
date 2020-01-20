@@ -18,11 +18,14 @@ data Token = Comment String
            | Comma deriving (Show, Eq)
 
 
-data Dir   = Input | Output | Inout  deriving (Show)
-data Width = Bus Int Int | Single    deriving (Show)
-data Port  = Port String Dir Width   deriving (Show)
+data ModuleDecl       = ModuleDecl String ModulePorts ModuleItems         deriving (Show)
+data ModulePorts      = ModulePorts String ModuleOtherPorts               deriving (Show)
+data ModuleOtherPorts = ModuleOtherPort ModulePorts | ModuleNoOtherPorts  deriving (Show)
 
-data Module = Module String [Port]   deriving (Show)
+data ModuleItems      = MItem_Output String
+                      | MItem_Input  String deriving (Show)
+
+
 
 pp :: Show a => [a] -> IO ()
 pp = mapM_ (putStrLn . show)
@@ -93,12 +96,56 @@ adv = get >>= (\c -> case c of
                        (_:xs)    -> put xs
                        otherwise -> error "Unexpected end of input (adv)" )
 
+idnt :: State [Token] String
+idnt = get >>= (\c -> case c of
+                       ((Ident x):xs) -> put xs >> return x
+                       otherwise -> error "Expected an identifier" )
+
 expt :: Token -> State [Token] ()
 expt t = get >>= (\(x:xs) -> if x == t then put xs 
                                        else error $ "Expected token <" ++ show t ++ ">, but got: " ++ show x)
 
 -----------------------------------------------------------------------------------------------------------------------
 
+parse_mdl_decl :: State [Token] ModuleDecl
+parse_mdl_decl = do expt K_module
+                    modname  <- idnt
+                    expt LParen
+                    modports <- parse_modports
+                    expt RParen
+                    expt Semi
+                    moditems <- parse_moditems
+                    expt K_endmodule
+                    return $ ModuleDecl modname modports moditems
 
+parse_modports :: State [Token] ModulePorts
+parse_modports = do port <- idnt
+                    otherports <- parse_other_ports
+                    return $ ModulePorts port otherports
+
+parse_other_ports :: State [Token] ModuleOtherPorts
+parse_other_ports =  do c <- cur
+                        case c of
+                           Comma -> do adv
+                                       more <- parse_modports
+                                       return $ ModuleOtherPort more
+                           RParen ->   return   ModuleNoOtherPorts
+
+
+parse_moditems :: State [Token] ModuleItems
+parse_moditems = do  c <- cur
+                     case c of
+                        
+                        K_input  -> do adv
+                                       nm <- idnt
+                                       expt Semi
+                                       return $ MItem_Input nm
+                        
+                        K_output -> do adv
+                                       nm <- idnt
+                                       expt Semi
+                                       return $ MItem_Output nm
+
+                        otherwise -> error "Unexpected module item"
 
 main = undefined
