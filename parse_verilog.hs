@@ -18,9 +18,8 @@ data Token = Comment String
            | Comma deriving (Show, Eq)
 
 
-data ModuleDecl       = ModuleDecl String ModulePorts [ModuleItem]        deriving (Show)
-data ModulePorts      = ModulePorts String ModuleOtherPorts               deriving (Show)
-data ModuleOtherPorts = ModuleOtherPort ModulePorts | ModuleNoOtherPorts  deriving (Show)
+data ModuleDecl       = ModuleDecl String [ModulePort] [ModuleItem]       deriving (Show)
+data ModulePort       = ModulePort String                                 deriving (Show)
 
 data ModuleItem       = MItem_Output String
                       | MItem_Input  String deriving (Show)
@@ -117,18 +116,16 @@ parse_mdl_decl = do expt K_module
                     expt K_endmodule
                     return $ ModuleDecl modname modports moditems
 
-parse_modports :: State [Token] ModulePorts
-parse_modports = do port <- idnt
-                    otherports <- parse_other_ports
-                    return $ ModulePorts port otherports
+parse_modports :: State [Token] [ModulePort]
+parse_modports = do port <- idnt -- won't handle empty list
+                    c <- cur
+                    case c of
+                       Comma  -> do adv
+                                    rest <- parse_modports
+                                    return $ ModulePort port : rest
+                       RParen -> return $ ModulePort port : []
+                       otherwise -> error "Expected Comma or RParen at the end of port list"
 
-parse_other_ports :: State [Token] ModuleOtherPorts
-parse_other_ports =  do c <- cur
-                        case c of
-                           Comma -> do adv
-                                       more <- parse_modports
-                                       return $ ModuleOtherPort more
-                           RParen ->   return   ModuleNoOtherPorts
 
 parse_moditems :: State [Token] [ModuleItem]
 parse_moditems = do  c <- cur
