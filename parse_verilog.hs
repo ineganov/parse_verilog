@@ -18,13 +18,12 @@ data Token = Comment String
            | Comma deriving (Show, Eq)
 
 
-data ModuleDecl       = ModuleDecl String ModulePorts ModuleItems         deriving (Show)
+data ModuleDecl       = ModuleDecl String ModulePorts [ModuleItem]        deriving (Show)
 data ModulePorts      = ModulePorts String ModuleOtherPorts               deriving (Show)
 data ModuleOtherPorts = ModuleOtherPort ModulePorts | ModuleNoOtherPorts  deriving (Show)
 
-data ModuleItems      = MItem_Output String
+data ModuleItem       = MItem_Output String
                       | MItem_Input  String deriving (Show)
-
 
 
 pp :: Show a => [a] -> IO ()
@@ -131,21 +130,29 @@ parse_other_ports =  do c <- cur
                                        return $ ModuleOtherPort more
                            RParen ->   return   ModuleNoOtherPorts
 
-
-parse_moditems :: State [Token] ModuleItems
+parse_moditems :: State [Token] [ModuleItem]
 parse_moditems = do  c <- cur
-                     case c of
-                        
-                        K_input  -> do adv
-                                       nm <- idnt
-                                       expt Semi
-                                       return $ MItem_Input nm
-                        
-                        K_output -> do adv
-                                       nm <- idnt
-                                       expt Semi
-                                       return $ MItem_Output nm
+                     if c == K_endmodule
+                        then return []
+                        else do item_head  <- parse_moditem
+                                items_rest <- parse_moditems
+                                return $ item_head : items_rest
 
-                        otherwise -> error "Unexpected module item"
+
+
+parse_moditem :: State [Token] ModuleItem
+parse_moditem = do  c <- cur
+                    case c of
+                       K_input  -> do adv
+                                      nm <- idnt
+                                      expt Semi
+                                      return $ MItem_Input nm
+                        
+                       K_output -> do adv
+                                      nm <- idnt
+                                      expt Semi
+                                      return $ MItem_Output nm
+
+                       otherwise -> error "Unexpected module item"
 
 main = undefined
