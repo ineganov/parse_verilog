@@ -24,7 +24,9 @@ data ModuleDecl       = ModuleDecl String [String] [ModuleItem]       deriving (
 data Range            = Range Int Int deriving (Show) -- FIXME: actually, this should be an Expr
 
 data ModuleItem       = MItem_Output (Maybe Range) [String]
-                      | MItem_Input  (Maybe Range) [String] deriving (Show)
+                      | MItem_Input  (Maybe Range) [String] 
+                      | MItem_Wire   (Maybe Range) [String]
+                      | MItem_Reg    (Maybe Range) [String] deriving (Show)
 
 
 pp :: Show a => [a] -> IO ()
@@ -143,22 +145,20 @@ parse_moditems = do  c <- cur
                                 items_rest <- parse_moditems
                                 return $ item_head : items_rest
 
+parse_var_decl :: (Maybe Range -> [String] -> ModuleItem) -> State [Token] ModuleItem
+parse_var_decl cons = do adv
+                         rng <- parse_range
+                         nms <- parse_ident_list Semi
+                         expt Semi
+                         return $ cons rng nms
 
 parse_moditem :: State [Token] ModuleItem
 parse_moditem = do  c <- cur
                     case c of
-                       K_input  -> do adv
-                                      rng <- parse_range
-                                      nms <- parse_ident_list Semi
-                                      expt Semi
-                                      return $ MItem_Input rng nms
-                        
-                       K_output -> do adv
-                                      rng <- parse_range
-                                      nms <- parse_ident_list Semi
-                                      expt Semi
-                                      return $ MItem_Output rng nms
-
+                       K_input  -> parse_var_decl MItem_Input
+                       K_output -> parse_var_decl MItem_Output
+                       K_wire   -> parse_var_decl MItem_Wire
+                       K_reg    -> parse_var_decl MItem_Reg
                        _ -> error "Unexpected module item"
 
 parse_range :: State [Token] (Maybe Range)
