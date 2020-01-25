@@ -19,13 +19,12 @@ data Token = EOF
            | Comma deriving (Show, Eq)
 
 
-data ModuleDecl       = ModuleDecl String [ModulePort] [ModuleItem]       deriving (Show)
-data ModulePort       = ModulePort String                                 deriving (Show)
+data ModuleDecl       = ModuleDecl String [String] [ModuleItem]       deriving (Show)
 
 data Range            = Range Int Int deriving (Show) -- FIXME: actually, this should be an Expr
 
-data ModuleItem       = MItem_Output (Maybe Range) String
-                      | MItem_Input  (Maybe Range) String deriving (Show)
+data ModuleItem       = MItem_Output (Maybe Range) [String]
+                      | MItem_Input  (Maybe Range) [String] deriving (Show)
 
 
 pp :: Show a => [a] -> IO ()
@@ -83,7 +82,8 @@ no_comments (x:xs)         = x:(no_comments xs)
 tokenize_file :: String -> IO [Token]
 tokenize_file s = readFile s >>= (return . no_comments . tokenize)
 
-
+parse_file :: FilePath -> IO ModuleDecl
+parse_file fname = tokenize_file fname >>= (\tkns -> return $ fst $ runState parse_mdl_decl tkns)
 
 -----------------------------------------------------------------------------------------------------------------------
 
@@ -117,7 +117,7 @@ parse_mdl_decl :: State [Token] ModuleDecl
 parse_mdl_decl = do expt K_module
                     modname  <- idnt
                     expt LParen
-                    modports <- parse_modports
+                    modports <- parse_ident_list RParen
                     expt RParen
                     expt Semi
                     moditems <- parse_moditems
@@ -125,15 +125,14 @@ parse_mdl_decl = do expt K_module
                     expt EOF -- FIXME: allow for multiple modules
                     return $ ModuleDecl modname modports moditems
 
-parse_modports :: State [Token] [ModulePort]
-parse_modports = do port <- idnt -- won't handle empty list
-                    c <- cur
-                    case c of
-                       Comma  -> do adv
-                                    rest <- parse_modports
-                                    return $ ModulePort port : rest
-                       RParen -> return $ ModulePort port : []
-                       _ -> error "Expected Comma or RParen at the end of port list"
+parse_ident_list :: Token -> State [Token] [String]
+parse_ident_list fin = do  first <- idnt -- won't accept empty list
+                           c     <- cur
+                           if c == Comma then do adv
+                                                 rest <- parse_ident_list fin
+                                                 return $ first : rest
+                           else if c == fin then return $ first : []
+                           else error $ "Expected Comma or " ++ (show fin) ++ " at the end of port list"
 
 
 parse_moditems :: State [Token] [ModuleItem]
@@ -150,15 +149,15 @@ parse_moditem = do  c <- cur
                     case c of
                        K_input  -> do adv
                                       rng <- parse_range
-                                      nm <- idnt
+                                      nms <- parse_ident_list Semi
                                       expt Semi
-                                      return $ MItem_Input rng nm
+                                      return $ MItem_Input rng nms
                         
                        K_output -> do adv
                                       rng <- parse_range
-                                      nm <- idnt
+                                      nms <- parse_ident_list Semi
                                       expt Semi
-                                      return $ MItem_Output rng nm
+                                      return $ MItem_Output rng nms
 
                        _ -> error "Unexpected module item"
 
