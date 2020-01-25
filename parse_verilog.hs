@@ -19,14 +19,15 @@ data Token = EOF
            | Comma deriving (Show, Eq)
 
 
-data ModuleDecl       = ModuleDecl String [String] [ModuleItem]       deriving (Show)
-
+data ModuleDecl       = ModuleDecl String [String] [ModuleItem] deriving (Show)
+data ModuleConn       = ModuleConn String String deriving (Show) -- FIXME: should be Expr
 data Range            = Range Int Int deriving (Show) -- FIXME: actually, this should be an Expr
 
 data ModuleItem       = MItem_Output (Maybe Range) [String]
                       | MItem_Input  (Maybe Range) [String] 
                       | MItem_Wire   (Maybe Range) [String]
-                      | MItem_Reg    (Maybe Range) [String] deriving (Show)
+                      | MItem_Reg    (Maybe Range) [String]
+                      | MItem_Inst   String String [ModuleConn] deriving (Show)
 
 
 pp :: Show a => [a] -> IO ()
@@ -155,11 +156,24 @@ parse_var_decl cons = do adv
 parse_moditem :: State [Token] ModuleItem
 parse_moditem = do  c <- cur
                     case c of
-                       K_input  -> parse_var_decl MItem_Input
-                       K_output -> parse_var_decl MItem_Output
-                       K_wire   -> parse_var_decl MItem_Wire
-                       K_reg    -> parse_var_decl MItem_Reg
+                       K_input   -> parse_var_decl MItem_Input
+                       K_output  -> parse_var_decl MItem_Output
+                       K_wire    -> parse_var_decl MItem_Wire
+                       K_reg     -> parse_var_decl MItem_Reg
+                       (Ident _) -> parse_mod_inst
                        _ -> error "Unexpected module item"
+
+parse_conns :: State [Token] [ModuleConn]
+parse_conns = undefined
+
+parse_mod_inst :: State [Token] ModuleItem
+parse_mod_inst = do nm_m <- idnt
+                    nm_i <- idnt
+                    expt LParen
+                    conns <- parse_conns
+                    expt RParen
+                    expt Semi
+                    return $ MItem_Inst nm_m nm_i conns
 
 parse_range :: State [Token] (Maybe Range)
 parse_range = do c <- cur
