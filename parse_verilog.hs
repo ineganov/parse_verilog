@@ -163,8 +163,22 @@ parse_moditem = do  c <- cur
                        (Ident _) -> parse_mod_inst
                        _ -> error "Unexpected module item"
 
+parse_conn :: State [Token] ModuleConn
+parse_conn = do expt Dot
+                conn_a <- idnt
+                expt LParen
+                conn_expr <- idnt -- FIXME: Expr
+                expt RParen
+                return $ ModuleConn conn_a conn_expr
+
 parse_conns :: State [Token] [ModuleConn]
-parse_conns = undefined
+parse_conns = do conn <- parse_conn
+                 c <- cur
+                 case c of
+                     Comma -> do adv
+                                 conns <- parse_conns
+                                 return $ conn : conns
+                     _     ->    return $ conn : []
 
 parse_mod_inst :: State [Token] ModuleItem
 parse_mod_inst = do nm_m <- idnt
