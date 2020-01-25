@@ -2,7 +2,8 @@ import System.Environment
 import Data.Char
 import Control.Monad.State.Lazy (State, get, put, runState)
 
-data Token = Comment String 
+data Token = EOF
+           | Comment String
            | Ident String
            | NumLiteral Int 
            | OpAssign | OpBitwiseOr | OpBitwiseAnd | OpBitwiseXor | OpBitwiseInv
@@ -21,15 +22,17 @@ data Token = Comment String
 data ModuleDecl       = ModuleDecl String [ModulePort] [ModuleItem]       deriving (Show)
 data ModulePort       = ModulePort String                                 deriving (Show)
 
-data ModuleItem       = MItem_Output String
-                      | MItem_Input  String deriving (Show)
+data Range            = Range Int Int deriving (Show) -- FIXME: actually, this should be an Expr
+
+data ModuleItem       = MItem_Output (Maybe Range) String
+                      | MItem_Input  (Maybe Range) String deriving (Show)
 
 
 pp :: Show a => [a] -> IO ()
 pp = mapM_ (putStrLn . show)
 
 tokenize :: String -> [Token]
-tokenize []           = []
+tokenize []           = [EOF]
 tokenize (' ':xs)     = tokenize xs
 tokenize ('\n':xs)    = tokenize xs
 tokenize ('(':xs)     = LParen   : tokenize xs
@@ -99,6 +102,11 @@ idnt = get >>= (\c -> case c of
                        ((Ident x):xs) -> put xs >> return x
                        otherwise -> error "Expected an identifier" )
 
+numbr :: State [Token] Int
+numbr = get >>= (\c -> case c of
+                       ((NumLiteral x):xs) -> put xs >> return x
+                       otherwise -> error "Expected a numeric literal" )
+
 expt :: Token -> State [Token] ()
 expt t = get >>= (\(x:xs) -> if x == t then put xs 
                                        else error $ "Expected token <" ++ show t ++ ">, but got: " ++ show x)
@@ -114,6 +122,7 @@ parse_mdl_decl = do expt K_module
                     expt Semi
                     moditems <- parse_moditems
                     expt K_endmodule
+                    expt EOF -- FIXME: allow for multiple modules
                     return $ ModuleDecl modname modports moditems
 
 parse_modports :: State [Token] [ModulePort]
@@ -124,7 +133,7 @@ parse_modports = do port <- idnt -- won't handle empty list
                                     rest <- parse_modports
                                     return $ ModulePort port : rest
                        RParen -> return $ ModulePort port : []
-                       otherwise -> error "Expected Comma or RParen at the end of port list"
+                       _ -> error "Expected Comma or RParen at the end of port list"
 
 
 parse_moditems :: State [Token] [ModuleItem]
@@ -136,20 +145,32 @@ parse_moditems = do  c <- cur
                                 return $ item_head : items_rest
 
 
-
 parse_moditem :: State [Token] ModuleItem
 parse_moditem = do  c <- cur
                     case c of
                        K_input  -> do adv
+                                      rng <- parse_range
                                       nm <- idnt
                                       expt Semi
-                                      return $ MItem_Input nm
+                                      return $ MItem_Input rng nm
                         
                        K_output -> do adv
+                                      rng <- parse_range
                                       nm <- idnt
                                       expt Semi
-                                      return $ MItem_Output nm
+                                      return $ MItem_Output rng nm
 
-                       otherwise -> error "Unexpected module item"
+                       _ -> error "Unexpected module item"
+
+parse_range :: State [Token] (Maybe Range)
+parse_range = do c <- cur
+                 case c of
+                     LBracket -> do adv
+                                    hi <- numbr
+                                    expt Colon
+                                    lo <- numbr
+                                    expt RBracket
+                                    return $ Just $ Range hi lo
+                     _ -> return Nothing
 
 main = undefined
