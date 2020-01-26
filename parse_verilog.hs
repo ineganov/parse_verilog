@@ -15,7 +15,7 @@ data Token = EOF
            | Colon
            | Hash
            | Dot 
-           | BaseHex | BaseDec | BaseOct | BaseBin
+           | BaseHex String | BaseDec String | BaseOct String | BaseBin String
            | Comma deriving (Show, Eq)
 
 
@@ -26,7 +26,8 @@ data Range            = Range Expr Expr deriving (Show)
 
 data Expr             = E_Variable String
                       | E_Number   Int
-                      | E_IndexOp  Expr deriving (Show)
+                      | E_Based    Int String
+                      | E_IndexOp  String Expr deriving (Show)
 
 data ModuleItem       = MItem_Output (Maybe Range) [String]
                       | MItem_Input  (Maybe Range) [String] 
@@ -60,10 +61,10 @@ tokenize ('^':xs)     = OpBitwiseXor : tokenize xs
 tokenize ('~':xs)     = OpBitwiseInv : tokenize xs
 tokenize ('\\':xs)    = Ident   idnt : tokenize rest where (idnt, rest) = break (== ' ' ) xs 
 tokenize ('/':'/':xs) = Comment cmnt : tokenize rest where (cmnt, rest) = break (== '\n') xs 
-tokenize ('\'':'h':xs) = BaseHex  : tokenize xs
-tokenize ('\'':'d':xs) = BaseDec  : tokenize xs
-tokenize ('\'':'o':xs) = BaseOct  : tokenize xs
-tokenize ('\'':'b':xs) = BaseBin  : tokenize xs
+tokenize ('\'':'h':xs) = BaseHex  (digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_0123456789abcdeABCDE") xs
+tokenize ('\'':'d':xs) = BaseDec  (digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_0123456789") xs
+tokenize ('\'':'o':xs) = BaseOct  (digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_01234567") xs
+tokenize ('\'':'b':xs) = BaseBin  (digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_01") xs
 tokenize (x:xs) | isDigit x = NumLiteral (read digits) : tokenize rest where (digits, rest) = span isDigit (x:xs) 
 tokenize (x:xs) | isAlpha x = case span isLegalIdent (x:xs) of
                                  ("module"    , rest)  -> K_module    : tokenize rest
@@ -236,8 +237,25 @@ parse_range = do c <- cur
 parse_expr :: State [Token] Expr
 parse_expr = do c <- cur
                 case c of
-                  (Ident s)      -> adv >> (return $ E_Variable s)
-                  (NumLiteral i) -> adv >> (return $ E_Number i)
+                  (Ident s)      -> do adv
+                                       cc <- cur
+                                       if cc == LBracket then do adv
+                                                                 idx_expr <- parse_expr
+                                                                 expt RBracket
+                                                                 return $ E_IndexOp s idx_expr
+                                                         else    return $ E_Variable s
+                  (NumLiteral i) -> do adv
+                                       cc <- cur
+                                       case cc of
+                                          (BaseHex s) -> adv >> (return $ E_Based i s)
+                                          (BaseDec s) -> adv >> (return $ E_Based i s)
+                                          (BaseOct s) -> adv >> (return $ E_Based i s)
+                                          (BaseBin s) -> adv >> (return $ E_Based i s)
+                                          _           -> return $ E_Number i
+                  (BaseHex s)    -> adv >> (return $ E_Based 32 s)
+                  (BaseDec s)    -> adv >> (return $ E_Based 32 s)
+                  (BaseOct s)    -> adv >> (return $ E_Based 32 s)
+                  (BaseBin s)    -> adv >> (return $ E_Based 32 s)
                   _              -> error "Failed to parse expression :("
 
 main = undefined
