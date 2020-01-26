@@ -21,13 +21,14 @@ data Token = EOF
 
 data ModuleDecl       = ModuleDecl String [String] [ModuleItem] deriving (Show)
 data ModuleConn       = ModuleConn String String deriving (Show) -- FIXME: should be Expr
+data ModulePara       = ModulePara String String deriving (Show) -- FIXME: should be Expr
 data Range            = Range Int Int deriving (Show) -- FIXME: actually, this should be an Expr
 
 data ModuleItem       = MItem_Output (Maybe Range) [String]
                       | MItem_Input  (Maybe Range) [String] 
                       | MItem_Wire   (Maybe Range) [String]
                       | MItem_Reg    (Maybe Range) [String]
-                      | MItem_Inst   String String [ModuleConn] deriving (Show)
+                      | MItem_Inst   String String [ModulePara] [ModuleConn] deriving (Show)
 
 
 pp :: Show a => [a] -> IO ()
@@ -171,6 +172,14 @@ parse_conn = do expt Dot
                 expt RParen
                 return $ ModuleConn conn_a conn_expr
 
+parse_para :: State [Token] ModulePara
+parse_para = do expt Dot
+                para_a <- idnt
+                expt LParen
+                para_expr <- idnt -- FIXME: Expr
+                expt RParen
+                return $ ModulePara para_a para_expr
+
 parse_conns :: State [Token] [ModuleConn]
 parse_conns = do conn <- parse_conn
                  c <- cur
@@ -180,14 +189,34 @@ parse_conns = do conn <- parse_conn
                                  return $ conn : conns
                      _     ->    return $ conn : []
 
+parse_params :: State [Token] [ModulePara] -- accepts #( .at_least_one (param) ) or nothing
+parse_params = do c <- cur
+                  case c of
+                     Hash -> do adv
+                                expt LParen
+                                para <- parse_params_
+                                expt RParen
+                                return para
+                     _    -> return []
+
+parse_params_ :: State [Token] [ModulePara]
+parse_params_ = do para <- parse_para
+                   c <- cur
+                   case c of
+                     Comma -> do adv
+                                 params <- parse_params_
+                                 return $ para : params
+                     _     ->    return $ para : []
+
 parse_mod_inst :: State [Token] ModuleItem
 parse_mod_inst = do nm_m <- idnt
+                    para <- parse_params
                     nm_i <- idnt
                     expt LParen
                     conns <- parse_conns
                     expt RParen
                     expt Semi
-                    return $ MItem_Inst nm_m nm_i conns
+                    return $ MItem_Inst nm_m nm_i para conns
 
 parse_range :: State [Token] (Maybe Range)
 parse_range = do c <- cur
