@@ -20,9 +20,13 @@ data Token = EOF
 
 
 data ModuleDecl       = ModuleDecl String [String] [ModuleItem] deriving (Show)
-data ModuleConn       = ModuleConn String String deriving (Show) -- FIXME: should be Expr
-data ModulePara       = ModulePara String String deriving (Show) -- FIXME: should be Expr
-data Range            = Range Int Int deriving (Show) -- FIXME: actually, this should be an Expr
+data ModuleConn       = ModuleConn String Expr   deriving (Show)
+data ModulePara       = ModulePara String Expr   deriving (Show)
+data Range            = Range Expr Expr deriving (Show)
+
+data Expr             = E_Variable String
+                      | E_Number   Int
+                      | E_IndexOp  Expr deriving (Show)
 
 data ModuleItem       = MItem_Output (Maybe Range) [String]
                       | MItem_Input  (Maybe Range) [String] 
@@ -164,11 +168,11 @@ parse_moditem = do  c <- cur
                        (Ident _) -> parse_mod_inst
                        _ -> error "Unexpected module item"
 
-parse_conn :: State [Token] ModuleConn
+parse_conn :: State [Token] ModuleConn -- FIXME: allow explicit empty connection
 parse_conn = do expt Dot
                 conn_a <- idnt
                 expt LParen
-                conn_expr <- idnt -- FIXME: Expr
+                conn_expr <- parse_expr
                 expt RParen
                 return $ ModuleConn conn_a conn_expr
 
@@ -176,7 +180,7 @@ parse_para :: State [Token] ModulePara
 parse_para = do expt Dot
                 para_a <- idnt
                 expt LParen
-                para_expr <- idnt -- FIXME: Expr
+                para_expr <- parse_expr
                 expt RParen
                 return $ ModulePara para_a para_expr
 
@@ -222,11 +226,18 @@ parse_range :: State [Token] (Maybe Range)
 parse_range = do c <- cur
                  case c of
                      LBracket -> do adv
-                                    hi <- numbr
+                                    hi <- parse_expr
                                     expt Colon
-                                    lo <- numbr
+                                    lo <- parse_expr
                                     expt RBracket
                                     return $ Just $ Range hi lo
                      _ -> return Nothing
+
+parse_expr :: State [Token] Expr
+parse_expr = do c <- cur
+                case c of
+                  (Ident s)      -> adv >> (return $ E_Variable s)
+                  (NumLiteral i) -> adv >> (return $ E_Number i)
+                  _              -> error "Failed to parse expression :("
 
 main = undefined
