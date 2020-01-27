@@ -15,9 +15,8 @@ data Token = EOF
            | Colon
            | Hash
            | Dot 
-           | BaseHex String | BaseDec String | BaseOct String | BaseBin String
+           | BaseHex FS_value | BaseDec FS_value | BaseOct FS_value | BaseBin FS_value
            | Comma deriving (Show, Eq)
-
 
 data ModuleDecl       = ModuleDecl String [String] [ModuleItem] deriving (Show)
 data ModuleConn       = ModuleConn String Expr   deriving (Show)
@@ -26,7 +25,7 @@ data Range            = Range Expr Expr deriving (Show)
 
 data Expr             = E_Variable String
                       | E_Number   Int
-                      | E_Based    Int String
+                      | E_Based    Int FS_value
                       | E_IndexOp  String Expr deriving (Show)
 
 data ModuleItem       = MItem_Output (Maybe Range) [String]
@@ -34,6 +33,53 @@ data ModuleItem       = MItem_Output (Maybe Range) [String]
                       | MItem_Wire   (Maybe Range) [String]
                       | MItem_Reg    (Maybe Range) [String]
                       | MItem_Inst   String String [ModulePara] [ModuleConn] deriving (Show)
+
+
+data FourState        = S_0 | S_1 | S_x | S_z deriving (Eq, Ord, Enum)
+type FS_value         = [FourState]
+
+instance Show FourState where
+   show S_0 = "0"
+   show S_1 = "1"
+   show S_x = "x"
+   show S_z = "z"
+
+fs_from_int :: Int -> Int -> FS_value
+fs_from_int n x = reverse $ iter n x
+                     where iter 0 _ = []
+                           iter n x = (mod_val $ mod x 2) : (iter (n-1) $ div x 2)
+                           mod_val 0 = S_0
+                           mod_val _ = S_1
+
+parse_bin :: String -> FS_value
+parse_bin x = parse_bin' $ map toLower x
+              where parse_bin' [] = []
+                    parse_bin' ('_':rest) =       parse_bin' rest
+                    parse_bin' ('0':rest) = S_0 : parse_bin' rest
+                    parse_bin' ('1':rest) = S_1 : parse_bin' rest
+                    parse_bin' ('x':rest) = S_x : parse_bin' rest
+                    parse_bin' ('z':rest) = S_z : parse_bin' rest
+
+parse_oct :: String -> FS_value
+parse_oct x = parse_oct' $ map toLower x
+              where parse_oct' [] = []
+                    parse_oct' ('_':rest) = parse_oct' rest
+                    parse_oct' ('x':rest) = [S_x, S_x, S_x] ++ (parse_oct' rest)
+                    parse_oct' ('z':rest) = [S_z, S_z, S_z] ++ (parse_oct' rest)
+                    parse_oct' (x:rest)   = (fs_from_int 3 $ fromEnum x - fromEnum '0') ++ (parse_oct' rest)
+
+parse_dec :: String -> FS_value
+parse_dec = undefined
+
+parse_hex :: String -> FS_value
+parse_hex x = parse_hex' $ map toLower x
+              where parse_hex' [] = []
+                    parse_hex' ('_':rest) = parse_hex' rest
+                    parse_hex' ('x':rest) = [S_x, S_x, S_x, S_x] ++ (parse_hex' rest)
+                    parse_hex' ('z':rest) = [S_z, S_z, S_z, S_z] ++ (parse_hex' rest)
+                    parse_hex' (x:rest)   = if x <= '9' 
+                                               then (fs_from_int 4 $ fromEnum x - fromEnum '0') ++ (parse_hex' rest)
+                                               else (fs_from_int 4 $ 10 + fromEnum x - fromEnum 'a') ++ (parse_hex' rest)
 
 
 pp :: Show a => [a] -> IO ()
@@ -61,10 +107,10 @@ tokenize ('^':xs)     = OpBitwiseXor : tokenize xs
 tokenize ('~':xs)     = OpBitwiseInv : tokenize xs
 tokenize ('\\':xs)    = Ident   idnt : tokenize rest where (idnt, rest) = break (== ' ' ) xs 
 tokenize ('/':'/':xs) = Comment cmnt : tokenize rest where (cmnt, rest) = break (== '\n') xs 
-tokenize ('\'':'h':xs) = BaseHex  (digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_0123456789abcdeABCDE") xs
-tokenize ('\'':'d':xs) = BaseDec  (digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_0123456789") xs
-tokenize ('\'':'o':xs) = BaseOct  (digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_01234567") xs
-tokenize ('\'':'b':xs) = BaseBin  (digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_01") xs
+tokenize ('\'':'h':xs) = BaseHex  (parse_hex digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_0123456789abcdeABCDE") xs
+tokenize ('\'':'d':xs) = BaseDec  (parse_dec digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_0123456789") xs
+tokenize ('\'':'o':xs) = BaseOct  (parse_oct digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_01234567") xs
+tokenize ('\'':'b':xs) = BaseBin  (parse_bin digits) : tokenize rest where (digits, rest) = span (\c -> c `elem` "xXzZ_01") xs
 tokenize (x:xs) | isDigit x = NumLiteral (read digits) : tokenize rest where (digits, rest) = span isDigit (x:xs) 
 tokenize (x:xs) | isAlpha x = case span isLegalIdent (x:xs) of
                                  ("module"    , rest)  -> K_module    : tokenize rest
