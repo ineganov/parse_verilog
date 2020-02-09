@@ -44,8 +44,13 @@ instance Show FourState where
    show S_x = "x"
    show S_z = "z"
 
-fs_sum :: FS_value -> FS_value -> FS_value
-fs_sum a b = undefined
+
+fs_sum :: FourState -> FS_value -> FS_value -> FS_value
+fs_sum _ [] [] = []
+fs_sum c []     (y:ys) = let (cout, r) = fs_sum_full_adder c S_0 y in r : fs_sum cout [] ys
+fs_sum c (x:xs) []     = let (cout, r) = fs_sum_full_adder c x S_0 in r : fs_sum cout xs []
+fs_sum c (x:xs) (y:ys) = let (cout, r) = fs_sum_full_adder c x   y in r : fs_sum cout xs ys
+
 
 fs_sum_full_adder :: FourState -> FourState -> FourState -> (FourState, FourState)
 --                             Carry  Rslt
@@ -61,14 +66,14 @@ fs_sum_full_adder _   _   _   = (S_x, S_x)
 
 
 fs_from_int :: Int -> Int -> FS_value
-fs_from_int n x = reverse $ iter n x
+fs_from_int n x = iter n x
                      where iter 0 _ = []
                            iter n x = (mod_val $ mod x 2) : (iter (n-1) $ div x 2)
                            mod_val 0 = S_0
                            mod_val _ = S_1
 
 parse_bin :: String -> FS_value
-parse_bin x = parse_bin' $ map toLower x
+parse_bin x = reverse $ parse_bin' $ map toLower x
               where parse_bin' [] = []
                     parse_bin' ('_':rest) =       parse_bin' rest
                     parse_bin' ('0':rest) = S_0 : parse_bin' rest
@@ -77,7 +82,7 @@ parse_bin x = parse_bin' $ map toLower x
                     parse_bin' ('z':rest) = S_z : parse_bin' rest
 
 parse_oct :: String -> FS_value
-parse_oct x = parse_oct' $ map toLower x
+parse_oct x = reverse $ parse_oct' $ map toLower x
               where parse_oct' [] = []
                     parse_oct' ('_':rest) = parse_oct' rest
                     parse_oct' ('x':rest) = [S_x, S_x, S_x] ++ (parse_oct' rest)
@@ -88,7 +93,7 @@ parse_dec :: String -> FS_value
 parse_dec = undefined
 
 parse_hex :: String -> FS_value
-parse_hex x = parse_hex' $ map toLower x
+parse_hex x = reverse $ parse_hex' $ map toLower x
               where parse_hex' [] = []
                     parse_hex' ('_':rest) = parse_hex' rest
                     parse_hex' ('x':rest) = [S_x, S_x, S_x, S_x] ++ (parse_hex' rest)
