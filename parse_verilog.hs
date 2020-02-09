@@ -44,6 +44,22 @@ instance Show FourState where
    show S_x = "x"
    show S_z = "z"
 
+fs_sum :: FS_value -> FS_value -> FS_value
+fs_sum a b = undefined
+
+fs_sum_full_adder :: FourState -> FourState -> FourState -> (FourState, FourState)
+--                             Carry  Rslt
+fs_sum_full_adder S_0 S_0 S_0 = (S_0, S_0)
+fs_sum_full_adder S_0 S_0 S_1 = (S_0, S_1)
+fs_sum_full_adder S_0 S_1 S_0 = (S_0, S_1)
+fs_sum_full_adder S_1 S_0 S_0 = (S_0, S_1)
+fs_sum_full_adder S_1 S_1 S_0 = (S_1, S_0)
+fs_sum_full_adder S_1 S_0 S_1 = (S_1, S_0)
+fs_sum_full_adder S_0 S_1 S_1 = (S_1, S_0)
+fs_sum_full_adder S_1 S_1 S_1 = (S_1, S_1)
+fs_sum_full_adder _   _   _   = (S_x, S_x)
+
+
 fs_from_int :: Int -> Int -> FS_value
 fs_from_int n x = reverse $ iter n x
                      where iter 0 _ = []
