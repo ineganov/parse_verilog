@@ -35,58 +35,58 @@ data ModuleItem       = MItem_Output (Maybe Range) [String]
                       | MItem_Inst   String String [ModulePara] [ModuleConn] deriving (Show)
 
 
-data FourState        = S_0 | S_1 | S_x | S_z deriving (Eq, Ord, Enum)
+data FourState        = S0 | S1 | Sx | Sz deriving (Eq, Ord, Enum)
 type FS_value         = [FourState]
 
 instance Show FourState where
-   show S_0 = "0"
-   show S_1 = "1"
-   show S_x = "x"
-   show S_z = "z"
+   show S0 = "0"
+   show S1 = "1"
+   show Sx = "x"
+   show Sz = "z"
 
 
 fs_sum :: FourState -> FS_value -> FS_value -> FS_value
 fs_sum _ [] [] = []
-fs_sum c []     (y:ys) = let (cout, r) = fs_sum_full_adder c S_0 y in r : fs_sum cout [] ys
-fs_sum c (x:xs) []     = let (cout, r) = fs_sum_full_adder c x S_0 in r : fs_sum cout xs []
+fs_sum c []     (y:ys) = let (cout, r) = fs_sum_full_adder c S0 y in r : fs_sum cout [] ys
+fs_sum c (x:xs) []     = let (cout, r) = fs_sum_full_adder c x S0 in r : fs_sum cout xs []
 fs_sum c (x:xs) (y:ys) = let (cout, r) = fs_sum_full_adder c x   y in r : fs_sum cout xs ys
 
 
 fs_sum_full_adder :: FourState -> FourState -> FourState -> (FourState, FourState)
 --                             Carry  Rslt
-fs_sum_full_adder S_0 S_0 S_0 = (S_0, S_0)
-fs_sum_full_adder S_0 S_0 S_1 = (S_0, S_1)
-fs_sum_full_adder S_0 S_1 S_0 = (S_0, S_1)
-fs_sum_full_adder S_1 S_0 S_0 = (S_0, S_1)
-fs_sum_full_adder S_1 S_1 S_0 = (S_1, S_0)
-fs_sum_full_adder S_1 S_0 S_1 = (S_1, S_0)
-fs_sum_full_adder S_0 S_1 S_1 = (S_1, S_0)
-fs_sum_full_adder S_1 S_1 S_1 = (S_1, S_1)
-fs_sum_full_adder _   _   _   = (S_x, S_x)
+fs_sum_full_adder S0 S0 S0 = (S0, S0)
+fs_sum_full_adder S0 S0 S1 = (S0, S1)
+fs_sum_full_adder S0 S1 S0 = (S0, S1)
+fs_sum_full_adder S1 S0 S0 = (S0, S1)
+fs_sum_full_adder S1 S1 S0 = (S1, S0)
+fs_sum_full_adder S1 S0 S1 = (S1, S0)
+fs_sum_full_adder S0 S1 S1 = (S1, S0)
+fs_sum_full_adder S1 S1 S1 = (S1, S1)
+fs_sum_full_adder _   _   _   = (Sx, Sx)
 
 
 fs_from_int :: Int -> Int -> FS_value
 fs_from_int n x = iter n x
                      where iter 0 _ = []
                            iter n x = (mod_val $ mod x 2) : (iter (n-1) $ div x 2)
-                           mod_val 0 = S_0
-                           mod_val _ = S_1
+                           mod_val 0 = S0
+                           mod_val _ = S1
 
 parse_bin :: String -> FS_value
 parse_bin x = reverse $ parse_bin' $ map toLower x
               where parse_bin' [] = []
                     parse_bin' ('_':rest) =       parse_bin' rest
-                    parse_bin' ('0':rest) = S_0 : parse_bin' rest
-                    parse_bin' ('1':rest) = S_1 : parse_bin' rest
-                    parse_bin' ('x':rest) = S_x : parse_bin' rest
-                    parse_bin' ('z':rest) = S_z : parse_bin' rest
+                    parse_bin' ('0':rest) = S0 : parse_bin' rest
+                    parse_bin' ('1':rest) = S1 : parse_bin' rest
+                    parse_bin' ('x':rest) = Sx : parse_bin' rest
+                    parse_bin' ('z':rest) = Sz : parse_bin' rest
 
 parse_oct :: String -> FS_value
 parse_oct x = reverse $ parse_oct' $ map toLower x
               where parse_oct' [] = []
                     parse_oct' ('_':rest) = parse_oct' rest
-                    parse_oct' ('x':rest) = [S_x, S_x, S_x] ++ (parse_oct' rest)
-                    parse_oct' ('z':rest) = [S_z, S_z, S_z] ++ (parse_oct' rest)
+                    parse_oct' ('x':rest) = [Sx, Sx, Sx] ++ (parse_oct' rest)
+                    parse_oct' ('z':rest) = [Sz, Sz, Sz] ++ (parse_oct' rest)
                     parse_oct' (x:rest)   = (fs_from_int 3 $ fromEnum x - fromEnum '0') ++ (parse_oct' rest)
 
 parse_dec :: String -> FS_value
@@ -96,8 +96,8 @@ parse_hex :: String -> FS_value
 parse_hex x = reverse $ parse_hex' $ map toLower x
               where parse_hex' [] = []
                     parse_hex' ('_':rest) = parse_hex' rest
-                    parse_hex' ('x':rest) = [S_x, S_x, S_x, S_x] ++ (parse_hex' rest)
-                    parse_hex' ('z':rest) = [S_z, S_z, S_z, S_z] ++ (parse_hex' rest)
+                    parse_hex' ('x':rest) = [Sx, Sx, Sx, Sx] ++ (parse_hex' rest)
+                    parse_hex' ('z':rest) = [Sz, Sz, Sz, Sz] ++ (parse_hex' rest)
                     parse_hex' (x:rest)   = if x <= '9' 
                                                then (fs_from_int 4 $ fromEnum x - fromEnum '0') ++ (parse_hex' rest)
                                                else (fs_from_int 4 $ 10 + fromEnum x - fromEnum 'a') ++ (parse_hex' rest)
