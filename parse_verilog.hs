@@ -62,7 +62,7 @@ fs_sum_full_adder S1 S1 S0 = (S1, S0)
 fs_sum_full_adder S1 S0 S1 = (S1, S0)
 fs_sum_full_adder S0 S1 S1 = (S1, S0)
 fs_sum_full_adder S1 S1 S1 = (S1, S1)
-fs_sum_full_adder _   _   _   = (Sx, Sx)
+fs_sum_full_adder _  _  _  = (Sx, Sx)
 
 
 fs_from_int :: Int -> Int -> FS_value
@@ -75,7 +75,7 @@ fs_from_int n x = iter n x
 parse_bin :: String -> FS_value
 parse_bin x = reverse $ parse_bin' $ map toLower x
               where parse_bin' [] = []
-                    parse_bin' ('_':rest) =       parse_bin' rest
+                    parse_bin' ('_':rest) =      parse_bin' rest
                     parse_bin' ('0':rest) = S0 : parse_bin' rest
                     parse_bin' ('1':rest) = S1 : parse_bin' rest
                     parse_bin' ('x':rest) = Sx : parse_bin' rest
@@ -89,8 +89,10 @@ parse_oct x = reverse $ parse_oct' $ map toLower x
                     parse_oct' ('z':rest) = [Sz, Sz, Sz] ++ (parse_oct' rest)
                     parse_oct' (x:rest)   = (fs_from_int 3 $ fromEnum x - fromEnum '0') ++ (parse_oct' rest)
 
-parse_dec :: String -> FS_value
-parse_dec = undefined
+parse_dec :: String -> FS_value -- FIXME: does not handle _xz
+parse_dec x =  let digits   = map (\c -> fromEnum c - fromEnum '0') x
+                   summands = map (\(x, y) -> x * y) $ zip (reverse digits) [10^x|x <- [0,1..]]
+               in foldr (fs_sum S0) [S0] $ map (fs_from_int 32) summands -- FIXME: it is not always 32
 
 parse_hex :: String -> FS_value
 parse_hex x = reverse $ parse_hex' $ map toLower x
