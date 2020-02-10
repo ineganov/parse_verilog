@@ -66,10 +66,9 @@ fs_sum_full_adder _  _  _  = (Sx, Sx)
 
 
 fs_from_int :: Int -> Int -> FS_value
-fs_from_int n x = iter n x
-                     where iter 0 _ = []
-                           iter n x = (mod_val $ mod x 2) : (iter (n-1) $ div x 2)
-                           mod_val 0 = S0
+fs_from_int 0 _ = []
+fs_from_int n x = (mod_val $ mod x 2) : (fs_from_int (n-1) $ div x 2)
+                     where mod_val 0 = S0
                            mod_val _ = S1
 
 parse_bin :: String -> FS_value

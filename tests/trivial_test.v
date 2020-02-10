@@ -15,7 +15,7 @@ my_module #( .BLAH(Q)) my_name ( .a (xa ),
                                  .b ( 1 ),
                                  .pq (1'b1),
                                  .er (16'habcd_123),
-                                 .tr ('h1234),
+                                 .tr (4'd12),
                                  .c (ya ) );
 
 //assign ya = &xa;
